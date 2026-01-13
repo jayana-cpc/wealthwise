@@ -1,6 +1,16 @@
-/.venv
-/CSV_Files_For_Testing
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
-/__pycache__
+.venv/
+
+# ---------- Node / Next.js ----------
+node_modules/
+.next/
+out/
+
+# ---------- Environment ----------
 .env
+.env.*
+
+# ---------- Local data ----------
+CSV_Files_For_Testing/
