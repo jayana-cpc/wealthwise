@@ -1,4 +1,6 @@
 /.venv
 /CSV_Files_For_Testing
+__pycache__/
+*.py[cod]
 /__pycache__
 .env
