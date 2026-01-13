@@ -62,7 +62,7 @@ export default function Page() {
     setLogoutStatus(null);
 
     // Send them back to your frontend after OAuth completes
-    const next = `${window.location.origin}`;
+    const next = `${window.location.origin}/dashboard`;
 
     const url = new URL("/auth/google/start", BACKEND_BASE_URL);
     url.searchParams.set("next", next);
@@ -94,7 +94,7 @@ export default function Page() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">Wealthwise</h1>
+        <h1 className="text-2xl text-zinc-700 font-semibold">Wealthwise</h1>
         <p className="mt-2 text-sm text-zinc-600">
           Sign in to upload your holdings and view risk metrics.
         </p>
@@ -102,7 +102,7 @@ export default function Page() {
         <button
           onClick={handleGoogleSignIn}
           disabled={loading || authStatus === "checking"}
-          className="mt-6 w-full rounded-xl border border-zinc-300 px-4 py-2 font-medium hover:bg-zinc-50 disabled:opacity-60"
+          className="mt-6 w-full rounded-xl border border-zinc-300 px-4 py-2 text-zinc-600 font-medium hover:bg-zinc-50 disabled:opacity-60"
         >
           {loading ? "Redirecting..." : "Sign in with Google"}
         </button>
