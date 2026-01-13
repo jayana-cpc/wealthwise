@@ -1,1 +1,3 @@
 /.venv
+/CSV_Files_For_Testing
+/__pycache__
