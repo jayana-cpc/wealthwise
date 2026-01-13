@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from csv_parsing import PositionsPayload, parse_positions_csv
+from backend.csv_parsing import PositionsPayload, parse_positions_csv
 
 
 app = FastAPI(title="WealthWise CSV API", version="0.1.0")
