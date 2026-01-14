@@ -71,6 +71,11 @@ export default function UploadPage() {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const txnFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedTxnFile, setSelectedTxnFile] = useState<File | null>(null);
+  const [txnStatus, setTxnStatus] = useState<UploadStatus>("idle");
+  const [txnMessage, setTxnMessage] = useState<string | null>(null);
+  const [txnError, setTxnError] = useState<string | null>(null);
 
   const [latestUpload, setLatestUpload] = useState<PortfolioUpload | null>(null);
   const [latestStatus, setLatestStatus] = useState<
@@ -209,6 +214,53 @@ export default function UploadPage() {
       setUploadStatus("error");
       setUploadMessage(null);
       setUploadError(
+        err instanceof Error ? err.message : "Upload failed. Please try again."
+      );
+    }
+  };
+
+  const handleUploadTransactions = async () => {
+    if (!selectedTxnFile) {
+      setTxnError("Choose a transactions JSON file to upload.");
+      return;
+    }
+    setTxnStatus("uploading");
+    setTxnMessage(null);
+    setTxnError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedTxnFile);
+
+      const res = await fetch(`${BACKEND_BASE_URL}/api/portfolio/import/transactions`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (res.status === 401) {
+        router.replace("/signin");
+        return;
+      }
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => null);
+        const detail =
+          errorBody?.detail ||
+          (typeof errorBody === "string" ? errorBody : "Upload failed.");
+        throw new Error(detail);
+      }
+      const data = (await res.json()) as { id: number; file_name?: string | null };
+      setTxnStatus("success");
+      setTxnMessage(
+        `Stored transactions upload${data.file_name ? ` (${data.file_name})` : ""}.`
+      );
+      setSelectedTxnFile(null);
+      if (txnFileInputRef.current) {
+        txnFileInputRef.current.value = "";
+      }
+    } catch (err) {
+      setTxnStatus("error");
+      setTxnMessage(null);
+      setTxnError(
         err instanceof Error ? err.message : "Upload failed. Please try again."
       );
     }
@@ -391,6 +443,62 @@ export default function UploadPage() {
                 </Link>
                 <span className="text-xs text-blue-100/70">
                   Batch ID is saved locally for that tab.
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    Upload transactions (performance)
+                  </h2>
+                  <p className="text-sm text-blue-100/80">
+                    Provide your brokerage transaction history JSON. We store the latest copy for the performance tab.
+                  </p>
+                </div>
+                <span className="rounded-full bg-blue-500/15 px-3 py-1 text-[11px] font-semibold uppercase text-blue-100">
+                  Required
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <input
+                  ref={txnFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={(e) => setSelectedTxnFile(e.target.files?.[0] ?? null)}
+                  className="w-full cursor-pointer rounded-xl border border-dashed border-white/25 bg-white/5 px-4 py-3 text-sm text-blue-100/85 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:border-indigo-300/50 focus:border-indigo-400/70 focus:outline-none"
+                />
+                <button
+                  onClick={handleUploadTransactions}
+                  disabled={txnStatus === "uploading"}
+                  className="w-full rounded-xl bg-linear-to-r from-sky-500 via-blue-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:translate-y-px hover:shadow-xl disabled:opacity-60"
+                >
+                  {txnStatus === "uploading" ? "Uploading..." : "Save transactions JSON"}
+                </button>
+              </div>
+
+              {txnMessage && (
+                <div className="mt-3 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100">
+                  {txnMessage}
+                </div>
+              )}
+              {txnError && (
+                <div className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-100">
+                  {txnError}
+                </div>
+              )}
+              {selectedTxnFile && (
+                <p className="mt-2 text-xs text-blue-100/75">Selected: {selectedTxnFile.name}</p>
+              )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-blue-100/70">
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 font-medium text-blue-100">
+                  JSON only
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 font-medium text-blue-100">
+                  Must include BrokerageTransactions array
                 </span>
               </div>
             </div>

@@ -123,22 +123,13 @@ export default function DashboardPage() {
         {authStatus === "ready" && (
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
+              {/* <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-blue-100/70">
-                      Upload workspace
-                    </p>
                     <h2 className="mt-1 text-lg font-semibold text-white">
-                      Send a CSV
+                      CSV Upload
                     </h2>
-                    <p className="mt-1 text-sm text-blue-100/80">
-                      Uploads live in their own workspace. Files are stored in Supabase and hydrated into your account.
-                    </p>
                   </div>
-                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-semibold uppercase text-emerald-200">
-                    New
-                  </span>
                 </div>
                 <div className="mt-5 space-y-2">
                   <Link
@@ -146,6 +137,36 @@ export default function DashboardPage() {
                     className="inline-flex w-full items-center justify-between rounded-xl bg-linear-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:translate-y-px hover:shadow-xl"
                   >
                     Open upload page
+                    <span aria-hidden className="text-base">
+                      -&gt;
+                    </span>
+                  </Link>
+                </div>
+              </div> */}
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-blue-100/70">
+                      Performance dashboard
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-white">
+                      Portfolio value & benchmarks
+                    </h2>
+                    <p className="mt-1 text-sm text-blue-100/80">
+                      Reconstructs positions from your transactions and charts them against SPY and IWM.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-semibold uppercase text-blue-100">
+                    Live
+                  </span>
+                </div>
+                <div className="mt-5 space-y-2">
+                  <Link
+                    href="/dashboard/performance"
+                    className="inline-flex w-full items-center justify-between rounded-xl bg-linear-to-r from-sky-500 via-blue-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:translate-y-px hover:shadow-xl"
+                  >
+                    Open performance tab
                     <span aria-hidden className="text-base">
                       -&gt;
                     </span>
