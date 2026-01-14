@@ -23,6 +23,12 @@ from backend.crypto_utils import encrypt_secret
 from backend.oauth import router as oauth_router
 from backend.risk_service import analyze_batch, import_holdings, latest_analysis
 from backend.performance_service import PerformanceResponse, build_performance_payload
+from backend.optimization_service import (
+    OptimizationRequest,
+    OptimizationResponse,
+    list_methods as list_opt_methods,
+    run_optimization,
+)
 from backend.supabase_client import (
     PortfolioUpload,
     fetch_latest_portfolio_upload,
@@ -273,3 +279,21 @@ async def set_deepseek_key(
         raise HTTPException(status_code=502, detail="Failed to store DeepSeek key.") from exc
 
     return {"status": "stored"}
+
+
+@app.get("/api/optimize/methods")
+async def optimize_methods() -> Dict[str, Any]:
+    return list_opt_methods()
+
+
+@app.post("/api/optimize/run", response_model=OptimizationResponse)
+async def optimize_run(
+    body: OptimizationRequest, user: SessionUser = Depends(get_current_user)
+) -> OptimizationResponse:
+    try:
+        return await run_optimization(user, body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Allocation optimization failed")
+        raise HTTPException(status_code=502, detail="Optimization failed.") from exc
