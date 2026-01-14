@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
@@ -21,10 +22,12 @@ from backend.csv_parsing import PositionsPayload, parse_positions_csv
 from backend.crypto_utils import encrypt_secret
 from backend.oauth import router as oauth_router
 from backend.risk_service import analyze_batch, import_holdings, latest_analysis
+from backend.performance_service import PerformanceResponse, build_performance_payload
 from backend.supabase_client import (
     PortfolioUpload,
     fetch_latest_portfolio_upload,
     insert_portfolio_upload,
+    insert_portfolio_transactions_upload,
     upsert_user_secret,
 )
 # backend/main.py (top)
@@ -77,6 +80,11 @@ class AnalyzeResponse(BaseModel):
 class ImportResponse(BaseModel):
     batch_id: str
     row_count: Optional[int] = None
+
+
+class TransactionImportResponse(BaseModel):
+    id: int
+    file_name: Optional[str] = None
 
 
 class DeepSeekKeyRequest(BaseModel):
@@ -156,6 +164,43 @@ async def import_portfolio_holdings(
     return ImportResponse(batch_id=batch.id, row_count=batch.row_count)
 
 
+@app.post("/api/portfolio/import/transactions", response_model=TransactionImportResponse)
+async def import_portfolio_transactions(
+    file: UploadFile = File(...), user: SessionUser = Depends(get_current_user)
+) -> TransactionImportResponse:
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="File not uploaded.")
+    if not file.filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a JSON file.")
+
+    try:
+        raw_bytes = await file.read()
+        text = raw_bytes.decode("utf-8-sig")
+        payload = json.loads(text)
+        if not isinstance(payload, dict):
+            raise ValueError("JSON root must be an object.")
+        if not payload.get("BrokerageTransactions"):
+            raise ValueError("JSON missing BrokerageTransactions array.")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Unable to decode file as UTF-8.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        saved = await run_in_threadpool(
+          insert_portfolio_transactions_upload,
+          user=user,
+          payload=payload,
+          raw_json=text,
+          file_name=file.filename,
+        )
+    except Exception as exc:
+        logger.exception("Failed to persist transactions upload to Supabase")
+        raise HTTPException(status_code=502, detail="Failed to store transactions upload.") from exc
+
+    return TransactionImportResponse(id=saved.id or 0, file_name=saved.file_name)
+
+
 @app.post("/api/risk/analyze", response_model=AnalyzeResponse)
 async def risk_analyze(
     body: AnalyzeRequest, user: SessionUser = Depends(get_current_user)
@@ -192,6 +237,21 @@ async def risk_latest(
     if not result:
         raise HTTPException(status_code=404, detail="No risk analysis found.")
     return result
+
+
+@app.get("/api/performance/portfolio", response_model=PerformanceResponse)
+async def portfolio_performance(
+    user: SessionUser = Depends(get_current_user),
+) -> PerformanceResponse:
+    try:
+        return await build_performance_payload(user)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to build performance dashboard payload")
+        raise HTTPException(
+            status_code=502, detail="Failed to build portfolio performance payload."
+        ) from exc
 
 
 @app.post("/api/settings/deepseek-key")

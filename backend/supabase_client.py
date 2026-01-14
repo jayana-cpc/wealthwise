@@ -13,6 +13,10 @@ from backend.csv_parsing import PositionsPayload
 
 try:
     from supabase import Client, create_client
+    try:  # pragma: no cover - lightweight import guard
+        from postgrest.exceptions import APIError as PostgrestAPIError
+    except Exception:  # pragma: no cover - fallback when postgrest changes
+        PostgrestAPIError = Exception
 except ImportError as exc:  # pragma: no cover - surfaces missing dependency clearly
     raise RuntimeError(
         "Missing dependency 'supabase'. Install with `pip install supabase`."
@@ -29,6 +33,7 @@ MARKET_PRICE_BARS_TABLE = os.getenv("MARKET_PRICE_BARS_TABLE", "market_price_bar
 RISK_ANALYSES_TABLE = os.getenv("RISK_ANALYSES_TABLE", "risk_analyses")
 RISK_NARRATIVES_TABLE = os.getenv("RISK_NARRATIVES_TABLE", "risk_narratives")
 USER_SECRETS_TABLE = os.getenv("USER_SECRETS_TABLE", "user_secrets")
+PORTFOLIO_TRANSACTIONS_TABLE = os.getenv("PORTFOLIO_TRANSACTIONS_TABLE", "portfolio_transactions")
 
 
 class PortfolioUpload(BaseModel):
@@ -103,6 +108,19 @@ class UserSecretRecord(BaseModel):
     user_id: str
     provider: str
     encrypted_value: str
+    created_at: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+
+
+class PortfolioTransactionsUpload(BaseModel):
+    id: Optional[int] = None
+    user_sub: str
+    user_email: Optional[str] = None
+    file_name: Optional[str] = None
+    payload: Dict[str, Any]
+    raw_json: Optional[str] = None
     created_at: Optional[str] = None
 
     class Config:
@@ -195,6 +213,34 @@ def fetch_latest_portfolio_upload(user: SessionUser) -> Optional[PortfolioUpload
 
     record["payload"] = PositionsPayload.parse_obj(payload_data)
     return PortfolioUpload.parse_obj(record)
+
+
+def fetch_latest_import_batch(user: SessionUser) -> Optional[PortfolioImportBatch]:
+    client = get_supabase_client()
+    response = (
+        client.table(PORTFOLIO_IMPORT_BATCHES_TABLE)
+        .select("*")
+        .eq("user_sub", user["sub"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    error = getattr(response, "error", None)
+    if error:
+        message = getattr(error, "message", None) or str(error)
+        raise RuntimeError(f"Supabase fetch failed: {message}")
+
+    data = getattr(response, "data", None)
+    if not data:
+        return None
+
+    record = data[0]
+    payload_data = record.get("payload")
+    if not payload_data:
+        raise RuntimeError("Supabase record missing payload data.")
+
+    record["payload"] = PositionsPayload.parse_obj(payload_data)
+    return PortfolioImportBatch.parse_obj(record)
 
 
 def insert_portfolio_import_batch(
@@ -429,3 +475,62 @@ def fetch_user_secret(user_id: str, provider: str) -> Optional[UserSecretRecord]
     if not data:
         return None
     return UserSecretRecord.parse_obj(data[0])
+
+
+def insert_portfolio_transactions_upload(
+    user: SessionUser, payload: Dict[str, Any], raw_json: str, file_name: str
+) -> PortfolioTransactionsUpload:
+    client = get_supabase_client()
+    record = {
+        "user_sub": user["sub"],
+        "user_email": user.get("email"),
+        "file_name": file_name,
+        "payload": jsonable_encoder(payload, exclude_none=True),
+        "raw_json": raw_json,
+    }
+    try:
+        response = client.table(PORTFOLIO_TRANSACTIONS_TABLE).insert(record).execute()
+    except PostgrestAPIError as exc:
+        message = getattr(exc, "message", None) or str(exc)
+        if "PGRST205" in message and "portfolio_transactions" in message:
+            raise RuntimeError(
+                "Supabase table 'portfolio_transactions' is missing. "
+                "Create it (see supabase/migrations/create_portfolio_transactions.sql) "
+                "or set PORTFOLIO_TRANSACTIONS_TABLE to an existing table."
+            ) from exc
+        raise
+    error = getattr(response, "error", None)
+    if error:
+        message = getattr(error, "message", None) or str(error)
+        raise RuntimeError(f"Supabase insert failed: {message}")
+
+    data = getattr(response, "data", None)
+    if not data:
+        raise RuntimeError("Supabase insert returned no data.")
+    return PortfolioTransactionsUpload.parse_obj(data[0])
+
+
+def fetch_latest_transactions_upload(user: SessionUser) -> Optional[PortfolioTransactionsUpload]:
+    client = get_supabase_client()
+    response = (
+        client.table(PORTFOLIO_TRANSACTIONS_TABLE)
+        .select("*")
+        .eq("user_sub", user["sub"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    error = getattr(response, "error", None)
+    if error:
+        message = getattr(error, "message", None) or str(error)
+        raise RuntimeError(f"Supabase fetch failed: {message}")
+
+    data = getattr(response, "data", None)
+    if not data:
+        return None
+    record = data[0]
+    payload_data = record.get("payload")
+    if not payload_data:
+        raise RuntimeError("Supabase record missing payload data.")
+    record["payload"] = payload_data
+    return PortfolioTransactionsUpload.parse_obj(record)
