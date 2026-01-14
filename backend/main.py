@@ -1,9 +1,10 @@
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
@@ -17,11 +18,14 @@ except Exception:
 
 from backend.auth import SessionUser, get_current_user
 from backend.csv_parsing import PositionsPayload, parse_positions_csv
+from backend.crypto_utils import encrypt_secret
 from backend.oauth import router as oauth_router
+from backend.risk_service import analyze_batch, import_holdings, latest_analysis
 from backend.supabase_client import (
     PortfolioUpload,
     fetch_latest_portfolio_upload,
     insert_portfolio_upload,
+    upsert_user_secret,
 )
 # backend/main.py (top)
 from dotenv import load_dotenv
@@ -56,6 +60,27 @@ app.add_middleware(
 app.include_router(oauth_router)
 
 logger = logging.getLogger("wealthwise.api")
+
+class AnalyzeRequest(BaseModel):
+    batch_id: str
+    mode: Literal["csv_only", "enriched"]
+
+
+class AnalyzeResponse(BaseModel):
+    analysis_id: str
+    status: str
+    packet: Dict[str, Any]
+    narratives: List[Dict[str, Any]]
+    model: Optional[str] = None
+
+
+class ImportResponse(BaseModel):
+    batch_id: str
+    row_count: Optional[int] = None
+
+
+class DeepSeekKeyRequest(BaseModel):
+    api_key: str
 
 
 @app.post("/upload-csv", response_model=PositionsPayload)
@@ -100,3 +125,91 @@ async def latest_portfolio_upload(
     except Exception as exc:
         logger.exception("Failed to fetch latest CSV upload from Supabase")
         raise HTTPException(status_code=502, detail="Failed to load latest upload.") from exc
+
+
+@app.post("/api/portfolio/import/holdings", response_model=ImportResponse)
+async def import_portfolio_holdings(
+    file: UploadFile = File(...), user: SessionUser = Depends(get_current_user)
+) -> ImportResponse:
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="File not uploaded.")
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a CSV.")
+
+    try:
+        raw_bytes = await file.read()
+        text = raw_bytes.decode("utf-8-sig")
+        payload = parse_positions_csv(text)
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Unable to decode file as UTF-8.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        batch = await run_in_threadpool(
+            import_holdings, user=user, payload=payload, raw_csv=text, file_name=file.filename
+        )
+    except Exception as exc:
+        logger.exception("Failed to persist holdings import to Supabase")
+        raise HTTPException(status_code=502, detail="Failed to store holdings import.") from exc
+
+    return ImportResponse(batch_id=batch.id, row_count=batch.row_count)
+
+
+@app.post("/api/risk/analyze", response_model=AnalyzeResponse)
+async def risk_analyze(
+    body: AnalyzeRequest, user: SessionUser = Depends(get_current_user)
+) -> AnalyzeResponse:
+    if body.mode not in ("csv_only", "enriched"):
+        raise HTTPException(status_code=400, detail="Invalid mode.")
+
+    try:
+        analysis, narratives, model = await analyze_batch(user, body.batch_id, body.mode)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Risk analysis failed")
+        raise HTTPException(status_code=502, detail="Risk analysis failed.") from exc
+
+    return AnalyzeResponse(
+        analysis_id=analysis.id,
+        status=analysis.status,
+        packet=analysis.packet,
+        narratives=narratives,
+        model=model,
+    )
+
+
+@app.get("/api/risk/latest")
+async def risk_latest(
+    batch_id: Optional[str] = None, user: SessionUser = Depends(get_current_user)
+) -> Dict[str, Any]:
+    try:
+        result = await run_in_threadpool(latest_analysis, user, batch_id)
+    except Exception as exc:
+        logger.exception("Failed to load latest risk analysis")
+        raise HTTPException(status_code=502, detail="Failed to load latest risk analysis.") from exc
+    if not result:
+        raise HTTPException(status_code=404, detail="No risk analysis found.")
+    return result
+
+
+@app.post("/api/settings/deepseek-key")
+async def set_deepseek_key(
+    body: DeepSeekKeyRequest, user: SessionUser = Depends(get_current_user)
+) -> Dict[str, str]:
+    if not body.api_key.strip():
+        raise HTTPException(status_code=400, detail="API key is required.")
+
+    try:
+        encrypted = encrypt_secret(body.api_key)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        await run_in_threadpool(upsert_user_secret, user["sub"], "deepseek", encrypted)
+    except Exception as exc:
+        logger.exception("Failed to persist DeepSeek key")
+        raise HTTPException(status_code=502, detail="Failed to store DeepSeek key.") from exc
+
+    return {"status": "stored"}
