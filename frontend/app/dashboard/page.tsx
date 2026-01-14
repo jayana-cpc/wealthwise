@@ -174,6 +174,36 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-blue-100/70">
+                      Allocation optimizer
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-white">
+                      Target weights & rebalance plan
+                    </h2>
+                    <p className="mt-1 text-sm text-blue-100/80">
+                      Goal-first allocations using price-only data, covariance controls, and constraint guardrails.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-semibold uppercase text-emerald-100">
+                    New
+                  </span>
+                </div>
+                <div className="mt-5 space-y-2">
+                  <Link
+                    href="/dashboard/optimization"
+                    className="inline-flex w-full items-center justify-between rounded-xl bg-linear-to-r from-emerald-500 via-sky-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-900/40 transition hover:translate-y-px hover:shadow-xl"
+                  >
+                    Open optimization tab
+                    <span aria-hidden className="text-base">
+                      -&gt;
+                    </span>
+                  </Link>
+                </div>
+              </div>
+
               </div>
 
             <div className="space-y-4">
