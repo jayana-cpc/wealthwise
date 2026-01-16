@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
+import AssistantGate from "@/components/assistant/assistant-gate"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`font-sans antialiased ${_inter.className}`}>
         {children}
+        <AssistantGate />
         <Analytics />
       </body>
     </html>

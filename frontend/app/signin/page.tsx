@@ -90,10 +90,8 @@ export default function SignInPage() {
   };
 
   return (
-    <main className="min-h-screen bg-linear-to-br from-[#050712] via-[#0d1124] to-[#131a38] text-white">
-      <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-14 lg:flex-row lg:items-center">
-        
-
+    <main className="min-h-screen bg-linear-to-br from-[#050712] via-[#0d1124] to-[#131a38] text-white flex items-center justify-center px-6 py-10">
+      <div className="flex w-full justify-center">
         <div className="w-full max-w-md space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/40 backdrop-blur">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -102,14 +100,11 @@ export default function SignInPage() {
               </p>
               <h2 className="text-xl font-semibold text-white">WealthWise access</h2>
             </div>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
-              Encrypted
-            </span>
+          
           </div>
 
           <p className="text-sm text-blue-100/80">
-            Use your Google account to connect. We store session cookies securely so you
-            can upload CSVs and run risk analysis in the dashboard.
+            
           </p>
 
           <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -119,7 +114,6 @@ export default function SignInPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Google sign in</p>
-                <p className="text-xs text-blue-100/70">Redirects to the OAuth flow.</p>
               </div>
             </div>
             <button

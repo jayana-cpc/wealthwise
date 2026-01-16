@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Compass } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -337,6 +338,18 @@ export default function OptimizationPage() {
   const primaryMetrics = result?.metrics?.recommended;
   const benchmarkMetrics = result?.metrics?.benchmark;
 
+  const startSurvey = () => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("ww-assistant-open", {
+        detail: {
+          mode: "survey",
+          dock: "right",
+        },
+      })
+    );
+  };
+
   return (
     <main className="min-h-screen bg-linear-to-br from-[#050712] via-[#0a0f21] to-[#0f1a3d] text-white">
       <div className="mx-auto max-w-6xl px-6 py-10">
@@ -394,6 +407,34 @@ export default function OptimizationPage() {
                 </span>
               </div>
             )}
+
+            <div className="rounded-2xl border border-indigo-400/40 bg-indigo-500/10 p-4 shadow-lg shadow-indigo-900/40">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-indigo-500/20 p-2 text-indigo-100">
+                    <Compass className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Not sure which optimizer fits?</p>
+                    <p className="text-xs text-blue-100/80">
+                      Start a quick survey and the WealthWise agent will ask a few goal-based questions to pick the right method for you.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={startSurvey}
+                  className="inline-flex items-center justify-center rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-indigo-900 transition hover:-translate-y-[1px] hover:shadow-lg hover:shadow-indigo-900/40"
+                >
+                  Start survey
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-blue-100/80">
+                <span className="rounded-full bg-white/10 px-2 py-1">Goals</span>
+                <span className="rounded-full bg-white/10 px-2 py-1">Turnover appetite</span>
+                <span className="rounded-full bg-white/10 px-2 py-1">Shorting vs long-only</span>
+                <span className="rounded-full bg-white/10 px-2 py-1">Diversification preference</span>
+              </div>
+            </div>
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-3">

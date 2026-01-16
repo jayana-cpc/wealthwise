@@ -124,3 +124,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.ww-assistant-picking * {
+  cursor: crosshair !important;
+}

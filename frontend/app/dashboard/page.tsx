@@ -157,9 +157,6 @@ export default function DashboardPage() {
                       Reconstructs positions from your transactions and charts them against SPY and IWM.
                     </p>
                   </div>
-                  <span className="rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-semibold uppercase text-blue-100">
-                    Live
-                  </span>
                 </div>
                 <div className="mt-5 space-y-2">
                   <Link
@@ -187,9 +184,7 @@ export default function DashboardPage() {
                       Goal-first allocations using price-only data, covariance controls, and constraint guardrails.
                     </p>
                   </div>
-                  <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-semibold uppercase text-emerald-100">
-                    New
-                  </span>
+                  
                 </div>
                 <div className="mt-5 space-y-2">
                   <Link
@@ -220,9 +215,7 @@ export default function DashboardPage() {
                       Use your saved batch ID to run the risk packet, scenarios, and narratives.
                     </p>
                   </div>
-                  <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-[10px] font-semibold uppercase text-indigo-100">
-                    New
-                  </span>
+                 
                 </div>
                 <div className="mt-5 space-y-2">
                   <Link

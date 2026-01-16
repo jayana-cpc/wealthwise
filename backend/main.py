@@ -1,11 +1,12 @@
 import logging
 import os
 import json
+import time
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
@@ -19,7 +20,7 @@ except Exception:
 
 from backend.auth import SessionUser, get_current_user
 from backend.csv_parsing import PositionsPayload, parse_positions_csv
-from backend.crypto_utils import encrypt_secret
+from backend.crypto_utils import decrypt_secret, encrypt_secret
 from backend.oauth import router as oauth_router
 from backend.risk_service import analyze_batch, import_holdings, latest_analysis
 from backend.performance_service import PerformanceResponse, build_performance_payload
@@ -32,10 +33,12 @@ from backend.optimization_service import (
 from backend.supabase_client import (
     PortfolioUpload,
     fetch_latest_portfolio_upload,
+    fetch_user_secret,
     insert_portfolio_upload,
     insert_portfolio_transactions_upload,
     upsert_user_secret,
 )
+from backend.deepseek_client import DeepSeekError, run_chat_completion
 # backend/main.py (top)
 from dotenv import load_dotenv
 load_dotenv()
@@ -69,6 +72,77 @@ app.add_middleware(
 app.include_router(oauth_router)
 
 logger = logging.getLogger("wealthwise.api")
+
+
+class AssistantChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AssistantChatRequest(BaseModel):
+    messages: List[AssistantChatMessage]
+    selection: Optional[Dict[str, Any]] = None
+    user_context: Optional[Dict[str, Any]] = Field(None, alias="userContext")
+    model: Optional[str] = None
+
+    class Config:
+        allow_population_by_field_name = True
+
+ASSISTANT_SYSTEM_PROMPT = """
+You are the in-app WealthWise assistant. Users click a UI element, and you receive a UI_SELECTION_JSON that describes what they referenced (labels, semantic fields, ww-id, role, bounding box). Use it to:
+- Identify what the element is.
+- Explain how to read or interpret it in plain language.
+- Mention inputs or filters (date range, benchmarks) when present.
+- Call out if required data is missing or ambiguous.
+Rules:
+- Do not invent numbers that are not present in the selection or provided context.
+- Prefer concise explanations anchored to the selection payload.
+- If no selection is provided, give a brief, general answer and ask for a selection for deeper guidance.
+""".strip()
+
+MAX_ASSISTANT_SELECTION_BYTES = 20_000
+MAX_ASSISTANT_MESSAGES = 24
+
+
+def _trim_selection(selection: Dict[str, Any]) -> Dict[str, Any]:
+    trimmed = dict(selection)
+    try:
+        encoded_len = len(json.dumps(trimmed, ensure_ascii=True).encode("utf-8"))
+    except Exception:
+        return {}
+
+    if encoded_len > MAX_ASSISTANT_SELECTION_BYTES:
+        trimmed.pop("outerHTMLSnippet", None)
+        visible = trimmed.get("visibleText")
+        if isinstance(visible, str):
+            trimmed["visibleText"] = visible[:400]
+    return trimmed
+
+
+def _build_assistant_messages(body: AssistantChatRequest) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = [{"role": "system", "content": ASSISTANT_SYSTEM_PROMPT}]
+
+    if body.selection:
+        trimmed = _trim_selection(body.selection)
+        messages.append({"role": "system", "content": f"UI_SELECTION_JSON: {json.dumps(trimmed, ensure_ascii=True)}"})
+
+    if body.user_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": f"PAGE_STATE_JSON: {json.dumps(body.user_context, ensure_ascii=True)}",
+            }
+        )
+
+    for msg in body.messages[-MAX_ASSISTANT_MESSAGES :]:
+        content = (msg.content or "").strip()
+        if not content:
+            continue
+        if msg.role not in ("user", "assistant"):
+            continue
+        messages.append({"role": msg.role, "content": content})
+
+    return messages
 
 class AnalyzeRequest(BaseModel):
     batch_id: str
@@ -258,6 +332,45 @@ async def portfolio_performance(
         raise HTTPException(
             status_code=502, detail="Failed to build portfolio performance payload."
         ) from exc
+
+
+@app.post("/api/ai/chat")
+async def assistant_chat(
+    body: AssistantChatRequest, user: SessionUser = Depends(get_current_user)
+) -> Dict[str, str]:
+    if not body.messages:
+        raise HTTPException(status_code=400, detail="messages are required.")
+
+    secret_record = fetch_user_secret(user["sub"], "deepseek")
+    api_key = decrypt_secret(secret_record.encrypted_value) if secret_record else None
+    if not api_key:
+        api_key = os.getenv("DEEPSEEK_API_KEY") or None
+    if not api_key:
+        raise HTTPException(status_code=400, detail="DeepSeek API key not configured.")
+
+    chat_messages = _build_assistant_messages(body)
+    started_at = time.monotonic()
+    try:
+        reply = await run_chat_completion(chat_messages, api_key=api_key, model=body.model)
+    except DeepSeekError as exc:
+        logger.warning("DeepSeek chat failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("Assistant chat crashed")
+        raise HTTPException(status_code=502, detail="Assistant request failed.") from exc
+
+    selection_dict = body.selection if isinstance(body.selection, dict) else {}
+    logger.info(
+        "assistant.chat",
+        extra={
+            "ww_id": selection_dict.get("wwId"),
+            "strategy": selection_dict.get("selectorStrategy"),
+            "model": body.model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+            "elapsed_sec": time.monotonic() - started_at,
+        },
+    )
+
+    return {"reply": reply}
 
 
 @app.post("/api/settings/deepseek-key")

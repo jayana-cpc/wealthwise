@@ -309,16 +309,34 @@ export default function PerformancePage() {
                     label="Portfolio value"
                     value={latestValue != null ? formatCurrency(latestValue) : "-"}
                     sub={`As of ${payload.end_date}`}
+                    wwId="portfolio_value_card"
+                    semanticKey="portfolio_value"
+                    semanticType="metric_card"
+                    displayValue={latestValue != null ? formatCurrency(latestValue) : undefined}
+                    asOfDate={payload.end_date}
+                    units="USD"
                   />
                   <MetricCard
                     label="Total return"
                     value={metrics.totalReturn != null ? formatPercent(metrics.totalReturn) : "—"}
                     sub={metrics.totalAbs != null ? formatCurrency(metrics.totalAbs) : undefined}
+                    wwId="total_return_card"
+                    semanticKey="total_return"
+                    semanticType="metric_card"
+                    displayValue={
+                      metrics.totalReturn != null ? formatPercent(metrics.totalReturn) : undefined
+                    }
                   />
                   <MetricCard
                     label="Max drawdown"
                     value={metrics.maxDrawdown != null ? formatPercent(metrics.maxDrawdown) : "—"}
                     sub={metrics.volatility != null ? `Vol ${formatPercent(metrics.volatility)}` : undefined}
+                    wwId="max_drawdown_card"
+                    semanticKey="max_drawdown"
+                    semanticType="metric_card"
+                    displayValue={
+                      metrics.maxDrawdown != null ? formatPercent(metrics.maxDrawdown) : undefined
+                    }
                   />
                 </section>
 
@@ -398,7 +416,12 @@ export default function PerformancePage() {
                     </span>
                   </div>
 
-                  <div className="mt-5 h-80 w-full rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div
+                    className="mt-5 h-80 w-full rounded-xl border border-white/10 bg-black/20 p-3"
+                    data-ww-id="portfolio_vs_benchmarks_chart"
+                    data-ww-semantic-type="chart"
+                    data-ww-semantic-key="portfolio_vs_benchmarks"
+                  >
                     {chartData.length > 1 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8 }}>
@@ -471,6 +494,12 @@ export default function PerformancePage() {
                     label="Annualized return"
                     value={metrics.annualized != null ? formatPercent(metrics.annualized) : "—"}
                     sub={metrics.sharpe != null ? `Sharpe-like ${metrics.sharpe.toFixed(2)}` : undefined}
+                    wwId="annualized_return_card"
+                    semanticKey="annualized_return"
+                    semanticType="metric_card"
+                    displayValue={
+                      metrics.annualized != null ? formatPercent(metrics.annualized) : undefined
+                    }
                   />
                   <MetricCard
                     label="Correlation vs benchmark"
@@ -478,6 +507,12 @@ export default function PerformancePage() {
                       metrics.correlation != null ? metrics.correlation.toFixed(2) : "—"
                     }
                     sub={metrics.beta != null ? `Beta ${metrics.beta.toFixed(2)}` : undefined}
+                    wwId="correlation_card"
+                    semanticKey="correlation_vs_benchmark"
+                    semanticType="metric_card"
+                    displayValue={
+                      metrics.correlation != null ? metrics.correlation.toFixed(2) : undefined
+                    }
                   />
                   <MetricCard
                     label="Cash balance"
@@ -487,6 +522,15 @@ export default function PerformancePage() {
                         : "-"
                     }
                     sub="Latest reconstructed cash"
+                    wwId="cash_balance_card"
+                    semanticKey="cash_balance"
+                    semanticType="metric_card"
+                    displayValue={
+                      payload.positions.length
+                        ? formatCurrency(payload.positions[payload.positions.length - 1].cash)
+                        : undefined
+                    }
+                    units="USD"
                   />
                 </section>
 
@@ -555,7 +599,12 @@ export default function PerformancePage() {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30">
+                <section
+                  className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-900/30"
+                  data-ww-id="holdings_performance_table"
+                  data-ww-semantic-type="holding_table"
+                  data-ww-semantic-key="holdings_performance"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.15em] text-blue-100/70">
@@ -919,17 +968,40 @@ function computeHoldingPerformance(
   return results.sort((a, b) => b.current_value - a.current_value);
 }
 
+type MetricCardProps = {
+  label: string;
+  value: string;
+  sub?: string;
+  wwId?: string;
+  semanticKey?: string;
+  semanticType?: string;
+  displayValue?: string;
+  asOfDate?: string;
+  units?: string;
+};
+
 function MetricCard({
   label,
   value,
   sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
+  wwId,
+  semanticKey,
+  semanticType,
+  displayValue,
+  asOfDate,
+  units,
+}: MetricCardProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-indigo-900/30">
+    <div
+      className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-indigo-900/30"
+      data-ww-id={wwId}
+      data-ww-semantic-type={semanticType}
+      data-ww-semantic-key={semanticKey}
+      data-ww-display-value={displayValue}
+      data-ww-as-of={asOfDate}
+      data-ww-units={units}
+      aria-label={`${label}: ${value}${sub ? ` (${sub})` : ""}`}
+    >
       <p className="text-xs uppercase tracking-[0.15em] text-blue-100/70">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-white">{value}</p>
       {sub && <p className="text-xs text-blue-100/70">{sub}</p>}

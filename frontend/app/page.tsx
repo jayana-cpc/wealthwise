@@ -61,10 +61,13 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 1 }}
             className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
           >
-            <Button size="lg" className="group bg-indigo-500 text-white hover:bg-indigo-400">
-              Start
+            <a href="/signin">
+              <Button size="lg" className="group bg-indigo-500 text-white hover:bg-indigo-400">
+                Start
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
+            </a>
+            
           </motion.div>
         </motion.div>
       </main>

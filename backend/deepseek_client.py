@@ -126,3 +126,61 @@ async def generate_narratives(
         raise DeepSeekError("DeepSeek response missing narratives list.")
 
     return narratives
+
+
+async def run_chat_completion(
+    messages: List[Dict[str, str]],
+    api_key: str,
+    model: Optional[str] = None,
+    base_url_env: str = "DEEPSEEK_BASE_URL",
+    model_env: str = "DEEPSEEK_MODEL",
+    temperature: float = 0.4,
+    max_tokens: int = 800,
+) -> str:
+    if not api_key:
+        raise DeepSeekError("Missing DeepSeek API key.")
+
+    base_url = os.getenv(base_url_env, "https://api.deepseek.com").rstrip("/")
+    model_name = model or os.getenv(model_env, "deepseek-chat")
+    url = f"{base_url}/chat/completions"
+
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+    except httpx.TimeoutException as exc:
+        logger.warning("DeepSeek chat timeout: url=%s", url)
+        raise DeepSeekError("DeepSeek request timed out.") from exc
+
+    if resp.status_code == 401:
+        logger.warning("DeepSeek chat auth failed: status=401 body=%s", resp.text[:400])
+        raise DeepSeekError("DeepSeek authentication failed (401).")
+    if resp.status_code == 429:
+        logger.warning("DeepSeek chat rate limit: status=429 body=%s", resp.text[:400])
+        raise DeepSeekError("DeepSeek rate limit hit (429).")
+    if resp.status_code >= 500:
+        logger.warning("DeepSeek chat service error: status=%s body=%s", resp.status_code, resp.text[:400])
+        raise DeepSeekError("DeepSeek service error.")
+    if resp.status_code >= 400:
+        logger.warning("DeepSeek chat failed: status=%s body=%s", resp.status_code, resp.text[:400])
+        raise DeepSeekError(f"DeepSeek request failed: {resp.text}")
+
+    data = resp.json()
+    choices = data.get("choices") or []
+    content = choices[0].get("message", {}).get("content") if choices else None
+    if not content:
+        logger.warning("DeepSeek chat empty content; raw=%s", resp.text[:400])
+        raise DeepSeekError("DeepSeek returned no content.")
+
+    return content
